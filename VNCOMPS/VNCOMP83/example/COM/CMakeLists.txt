@@ -1,0 +1,96 @@
+# Cmake script for project AddInCOM
+# autor: 1C
+
+CMAKE_MINIMUM_REQUIRED(VERSION 3.6 FATAL_ERROR)
+
+IF (UNIX)
+    MESSAGE(WARNING "Must Windows only")
+    return()
+ENDIF()
+
+PROJECT(${Addn_COM})
+
+CONFIGURE_FILE(${CMAKE_SOURCE_DIR}/conf_data_in/AddIn.rc.in ${CMAKE_CURRENT_SOURCE_DIR}/AddIn.rc)
+CONFIGURE_FILE(${CMAKE_SOURCE_DIR}/conf_data_in/AddIn.def.in ${CMAKE_CURRENT_SOURCE_DIR}/AddIn.def)
+
+SET(AddnCOM_SRC
+    AddIn.cpp
+    AddIn.rc
+    AddIn.rgs
+    AddInCOM.cpp
+    AddInCOM.h
+    AddInCOM.rgs
+    dlldatax.c
+    dlldatax.h
+    dllmain.cpp
+    dllmain.h
+    resource.h
+    stdafx.cpp
+    stdafx.h
+    targetver.h
+    )
+set_source_files_properties(AddInCOM.rgs AddIn.rgs PROPERTIES HEADER_FILE_ONLY TRUE)
+
+ADD_DEFINITIONS(-DWIN32 -DUNICODE -D_USRDLL -D_MERGE_PROXYSTUB)
+
+IF(NOT TARGET_PLATFORM_32)
+    SET(AMD_64 "/amd64")
+ENDIF()
+
+set(MIDL_OUTPUT
+    ${CMAKE_CURRENT_SOURCE_DIR}/AddIn_i.h
+    ${CMAKE_CURRENT_SOURCE_DIR}/AddIn_i.c
+    ${CMAKE_CURRENT_SOURCE_DIR}/AddIn.tlb
+    )
+set(MIDL_FILE
+    ${CMAKE_CURRENT_LIST_DIR}/AddIn.idl
+    )
+add_custom_command(
+    OUTPUT ${MIDL_OUTPUT}
+    COMMAND midl /h ${CMAKE_CURRENT_SOURCE_DIR}/AddIn_i.h 
+        /proxy ${CMAKE_CURRENT_SOURCE_DIR}/AddIn_p.c 
+        /iid ${CMAKE_CURRENT_SOURCE_DIR}/AddIn_i.c 
+        /dlldata ${CMAKE_CURRENT_SOURCE_DIR}/dlldata.c 
+        /tlb ${CMAKE_CURRENT_SOURCE_DIR}/AddIn.tlb
+        ${AMD_64} ${MIDL_FILE}
+    WORKING_DIRECTORY ${CMAKE_CURRENT_SOURCE_DIR}
+    MAIN_DEPENDENCY ${MIDL_FILE}
+    BYPRODUCTS ${MIDL_OUTPUT}
+    VERBATIM
+    )
+SET(ADDITIONAL_CLEAN_FILES ${MIDL_OUTPUT})
+ADD_DEFINITIONS( -D_WINDLL -D_CRT_SECURE_NO_WARNINGS)
+SET(AddInIE_SRC_DEF AddIn.def)
+
+
+SET(CMAKE_LIBRARY_PATH ${CMAKE_SOURCE_DIR}/../lib)
+LINK_DIRECTORIES(${CMAKE_SOURCE_DIR}/../lib)
+
+INCLUDE_DIRECTORIES(${CMAKE_SOURCE_DIR}/../include)
+
+add_library(${PROJECT_NAME} SHARED ${AddnCOM_SRC} ${MIDL_OUTPUT} ${AddInIE_SRC_DEF})
+
+TARGET_LINK_LIBRARIES(${PROJECT_NAME} RpcRT4.lib oleaut32.lib)
+
+SET_TARGET_PROPERTIES( ${PROJECT_NAME} PROPERTIES
+    PREFIX ""
+   CLEAN_DIRECT_OUTPUT 1
+   OUTPUT_NAME ${PROJECT_NAME}${MySuffix2}_${Addn_VERSION}
+   )
+if (SIGN_BAT)
+    SET(SIGN_CMD1 ${SIGN_BAT} $<TARGET_FILE:${PROJECT_NAME}>)
+    SET(SIGN_CMD2 )
+elseif(SIGN_TOOL AND EXISTS ${SIGN_CERT})
+    SET(SIGN_CMD1 ${SIGN_SHA1} $<TARGET_FILE:${PROJECT_NAME}>)
+    SET(SIGN_CMD2 ${SIGN_SHA256} $<TARGET_FILE:${PROJECT_NAME}>)
+else()
+    SET(SIGN_CMD1)
+    SET(SIGN_CMD2)
+endif()
+add_custom_command(TARGET ${PROJECT_NAME} POST_BUILD 
+        COMMAND ${SIGN_CMD1}
+        COMMAND ${SIGN_CMD2}
+        COMMAND ${CMAKE_COMMAND} -E rename $<TARGET_FILE:${PROJECT_NAME}> ${LIB_DIR}/$<TARGET_FILE_NAME:${PROJECT_NAME}>
+        COMMENT "Copy ${PROJECT_NAME}"
+        MAIN_DEPENDENCY ${PROJECT_NAME}
+        )

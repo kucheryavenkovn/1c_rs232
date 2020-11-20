@@ -64,7 +64,8 @@
 #if !defined __linux__
     ////////////////////////////////////////////////////////////////////////////
     // sized integer types
-    typedef __int8            int8_t   ; ///< 8-bit integer
+    typedef signed char int8_t;
+    //typedef signed char int8_t ;            int8_t   ; ///< 8-bit integer
     typedef unsigned __int8   uint8_t  ; ///< 8-bit unsigned integer
 
     typedef __int16           int16_t  ; ///< 16-bit integer         
